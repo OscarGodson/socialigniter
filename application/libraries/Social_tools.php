@@ -27,6 +27,7 @@ class Social_tools
 		$this->ci->load->model('relationships_model');
 		$this->ci->load->model('tags_model');
 		$this->ci->load->model('taxonomy_model');
+		$this->ci->load->model('upload_model');
 
 		// Define Variables
 		$this->view_comments = NULL;
@@ -102,6 +103,11 @@ class Social_tools
 	{
 		return $this->ci->categories_model->get_categories_view($parameter, $value);	
 	}
+	
+	function get_category_title_url($type, $title_url)
+	{
+		return $this->ci->categories_model->get_category_title_url($type, $title_url);
+	}	
 
 	function get_category_default_user($parameter, $value, $user_id, $make=FALSE)
 	{
@@ -539,8 +545,44 @@ class Social_tools
 					$insert_taxonomy = $this->ci->taxonomy_model->add_taxonomy($tag_id, 'tag', $tag_total);
 				}	
 			}
+			
 			return TRUE;
 		}
 	}
+	
+	/* Upload */
+    function verify_upload($consumer_key, $file_hash, $delete=FALSE)
+	{
+		$user = $this->ci->social_auth->get_user('consumer_key', $consumer_key);
+		
+		if (!$user)
+		{
+			return FALSE;
+		}
+		else
+		{		
+			$check_upload	= $this->ci->upload_model->check_upload_hash($consumer_key, $file_hash);
+		
+			if ($check_upload)
+			{
+				if ($delete) $this->delete_upload($check_upload->upload_id);
+			
+				return TRUE;
+			}
+		}
+	
+		return FALSE;
+	}
+
+    function add_upload($upload_data)
+	{
+		return $this->ci->upload_model->add_upload($upload_data);
+	}
+	
+    function delete_upload($upload_id)
+	{
+		return $this->ci->upload_model->delete_upload($upload_id);
+	}
+
 
 }

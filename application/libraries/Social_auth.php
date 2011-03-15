@@ -1,10 +1,10 @@
 <?php if (!defined('BASEPATH')) exit('No direct script access allowed');
 /*
-* Name:  Social Auth Library
+* Name:  	Social Auth Library
 * 
-* Author:  		Brennan Novak severely hacked Ben Edmunds 'Ion Auth Model' which was based on Redux Auth 2 Phil Sturgeon also added some awesomeness
-* 		   		contact@social-igniter.com
-*				@socialigniter
+* Author:  	Brennan Novak severely hacked Ben Edmunds 'Ion Auth Model' which was based on Redux Auth 2 Phil Sturgeon also added some awesomeness
+* 		   	contact@social-igniter.com
+*			@socialigniter
 *
 * Location: http://github.com/socialigniter/core
 */
@@ -15,11 +15,12 @@ class Social_auth
 	protected $ci;
 	protected $status;
 	protected $messages;
-	protected $errors = array();
+	protected $errors   = array();
 	protected $error_start_delimiter;
 	protected $error_end_delimiter;
-	public $_extra_where = array();
-	public $_extra_set = array();
+	public $config_email	= array();    	
+	public $_extra_where	= array();
+	public $_extra_set		= array();
 
 	function __construct()
 	{
@@ -33,6 +34,29 @@ class Social_auth
 		$this->ci->load->model('auth_model');
 		$this->ci->load->model('connections_model');
 		
+		// Config Email	
+		$this->ci->load->library('email');
+		
+		$this->config_email['protocol']  	= config_item('site_email_protocol');
+		$this->config_email['mailtype']  	= 'html';
+		$this->config_email['charset']  	= 'UTF-8';
+		$this->config_email['crlf']			= "\r\n";
+		$this->config_email['newline'] 		= "\r\n"; 			
+		$this->config_email['wordwrap']  	= FALSE;
+		$this->config_email['validate']		= TRUE;
+		$this->config_email['priority']		= 1;
+		
+		if (config_item('site_email_protocol') == 'smtp')
+		{
+			$this->config_email['smtp_host'] 	= config_item('site_smtp_host');
+			$this->config_email['smtp_user'] 	= config_item('site_smtp_user');
+			$this->config_email['smtp_pass'] 	= config_item('site_smtp_pass');
+			$this->config_email['smtp_port'] 	= config_item('site_smtp_port');
+		}
+
+		$this->ci->email->initialize($this->config_email);
+				
+		
 		// Auto-login user if they're remembered
 		if (!$this->logged_in() && get_cookie('email') && get_cookie('remember_code'))
 		{
@@ -44,7 +68,7 @@ class Social_auth
 			}
 		}
 		
-  		// Pulls In DB settings from SI for Oauth
+  		// Pulls In DB settings from CI to Oauth libs
         $database = array(
         	'server'	=> $this->ci->db->hostname, 
         	'username'	=> $this->ci->db->username, 
@@ -231,46 +255,26 @@ class Social_auth
 		}
 	}
 
-	function register($username, $password, $email, $additional_data, $group_name = false)
+	function register($username, $password, $email, $additional_data, $group_name=false)
 	{
 		$user_id = $this->ci->auth_model->register($username, $password, $email, $additional_data, $group_name);
 		
 		if ($user_id) 
 		{
 			$this->set_message('account_creation_successful');
-		
-			log_message('debug', 'debuuuugggg: $user_id'.$user_id);
-		
-			// Make OAuth Tokens & debug msgs
-			$consumer_keys	= $this->create_or_update_consumer(array('requester_name' => $additional_data['name'], 'requester_email' => $email), $user_id);
 			
-			log_message('debug', 'debuuuugggg: consumer_key '.$consumer_keys['consumer_key']);
-			log_message('debug', 'debuuuugggg: consumer_secret '.$consumer_keys['consumer_key']);
-						
-			$access_tokens	= $this->grant_access_token_to_consumer($consumer_keys['consumer_key'], $user_id);			
+			// Add Oauth Tokens
+			$this->oauth_register($email, $user_id, $additional_data['name']);
 
-			log_message('debug', 'debuuuugggg: token '.$access_tokens['token']);
-			log_message('debug', 'debuuuugggg: token_secret '.$access_tokens['token_secret']);
-
-	    	$update_data = array(
-	        	'consumer_key'		=> $consumer_keys['consumer_key'],
-	        	'consumer_secret'	=> $consumer_keys['consumer_secret'],
-	        	'token'				=> $access_tokens['token'],
-	        	'token_secret'		=> $access_tokens['token_secret']
-			);
-	    	
-	    	// Update the user with tokens
-	    	$this->update_user($user_id, $update_data);
+			// Get User
+		    $user = $this->get_user('user_id', $user_id);
 
 			// Send Welcome Email				
 			$data = array(
-				'name'	   => $additional_data['name'],
-				'username' => $username,
-        		'email'    => $email
+				'name'	   => $user->name,
+				'username' => $user->username,
+        		'email'    => $user->email
 			);
-			
-
-
 
 			// If Activation Email
 			if (config_item('email_activation') == false)
@@ -279,7 +283,7 @@ class Social_auth
 	
 				$this->ci->email->set_newline("\r\n");	            
 				$this->ci->email->from(config_item('site_admin_email'), config_item('site_title'));
-				$this->ci->email->to($email);
+				$this->ci->email->to($user->email);
 				$this->ci->email->subject(config_item('site_title').' thanks you for signing up');
 				$this->ci->email->message($message);
 				
@@ -297,12 +301,11 @@ class Social_auth
 			else
 			{
 				$activation_code = $this->ci->auth_model->activation_code;
-		    	$user            = $this->ci->auth_model->get_user($user_id);
 	
 				$data = array(
 					'email'   	 => $user->email,
 					'user_id'    => $user->user_id,
-					'email'      => $email,
+					'email'      => $user->email,
 					'activation' => $activation_code,
 				);
 	            
@@ -310,7 +313,7 @@ class Social_auth
 	
 				$this->ci->email->set_newline("\r\n");            
 				$this->ci->email->from(config_item('site_admin_email'), config_item('site_title'));
-				$this->ci->email->to($email);
+				$this->ci->email->to($user->email);
 				$this->ci->email->subject(config_item('site_title') . ' - Account Activation');
 				$this->ci->email->message($message);
 				
@@ -324,10 +327,7 @@ class Social_auth
 					$this->set_error('activation_email_unsuccessful');
 					return FALSE;
 				}
-			}
-		
-			
-			
+			}			
 		}
 		else 
 		{
@@ -342,12 +342,40 @@ class Social_auth
 
 		if ($user_id)
 		{
-			$this->set_message('account_creation_successful');
+			$this->set_message('account_creation_successful');	
+			
+			// Add Oauth Tokens
+			$this->oauth_register($email, $user_id, $additional_data['name']);
+			
 			return $user_id;
 		}
 		else 
 		{
 			$this->set_error('account_creation_unsuccessful');
+			return FALSE;
+		}
+	}
+	
+	function oauth_register($email, $user_id, $name=NULL)
+	{
+		if (($email) && ($user_id))
+		{
+			// Make OAuth Tokens & debug msgs
+			$consumer_keys	= $this->create_or_update_consumer(array('requester_name' => $name, 'requester_email' => $email), $user_id);
+			$access_tokens	= $this->grant_access_token_to_consumer($consumer_keys['consumer_key'], $user_id);
+	
+	    	$update_data = array(
+	        	'consumer_key'		=> $consumer_keys['consumer_key'],
+	        	'consumer_secret'	=> $consumer_keys['consumer_secret'],
+	        	'token'				=> $access_tokens['token'],
+	        	'token_secret'		=> $access_tokens['token_secret']
+			);
+	    	
+	    	// Update the user with tokens
+	    	return $this->update_user($user_id, $update_data);	
+		}
+		else
+		{
 			return FALSE;
 		}
 	}
@@ -465,6 +493,11 @@ class Social_auth
 	{
 		return $this->ci->auth_model->get_user_meta_meta($user_id, $meta);
 	}
+
+	function get_user_meta_row($user_id, $meta)
+	{
+		return $this->ci->auth_model->get_user_meta_row($user_id, $meta);
+	}
 	
 	function find_user_meta_value($key, $meta_query)
 	{
@@ -496,7 +529,9 @@ class Social_auth
     	    
 		// Loop user_meta_data
 		foreach ($user_meta_data as $meta => $value)
-		{		
+		{	
+			$update_count++;
+			
 			// Form Element Name
 			$this_user_meta = array(
 				'user_id'	=> $user_id,
@@ -510,14 +545,12 @@ class Social_auth
 			if ($current)
 			{			
 				$this->ci->auth_model->update_user_meta($current->user_meta_id, array('value' => $value));
-				$update_count++;
 			}
 			else
 			{
 				$this_user_meta['value'] = $value;
 				$this->ci->auth_model->add_user_meta($this_user_meta);			
-				$update_count++;
-			}		
+			}
 		}
 		
 		// Were All Updated
@@ -564,8 +597,7 @@ class Social_auth
 	function set_userdata_connections($user_id)
 	{	
 		$this->ci->session->set_userdata('user_connections', $this->get_connections_user($user_id));
-	}	
-	
+	}
 	
 	function set_lang($lang='en')
 	{
@@ -656,6 +688,11 @@ class Social_auth
 		return $this->ci->connections_model->check_connection_user($user_id, $module, $type);
 	}
 
+	function check_connection_user_id($connection_user_id, $module)
+	{
+		return $this->ci->connections_model->check_connection_user_id($connection_user_id, $module);
+	}
+
 	function get_connection($connection_id)
 	{
 		return $this->ci->connections_model->get_connection($connection_id);
@@ -669,6 +706,11 @@ class Social_auth
 	function add_connection($connection_data)
 	{
 		return $this->ci->connections_model->add_connection($connection_data);
+	}
+
+	function update_connection($connection_id, $connection_data)
+	{
+		return $this->ci->connections_model->update_connection($connection_id, $connection_data);
 	}
 	
 	function delete_connection($connection_id)

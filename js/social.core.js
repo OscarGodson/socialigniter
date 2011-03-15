@@ -1,14 +1,3 @@
-if (jQuery.url.attr('port'))
-{
-	var url_port = ':' + jQuery.url.attr('port');
-}
-else
-{
-	var url_port = '';
-}
-var base_url 		= jQuery.url.attr('protocol') + '://' + jQuery.url.attr('host') + url_port + '/';
-var current_module	= jQuery.url.segment(1);
-
 // Makes a Placeholder for form module
 function doPlaceholder(id, placeholder)
 {		
@@ -99,7 +88,9 @@ $(function(){ $('input').attr('autocomplete','off'); });
 			message : 'Content has been saved', // The message
 			appendTo: '.content_wrap', 			// Where to add the message
 			timeout : 5000, 					// How long to wait before hiding message
-			speed   : 'normal' 					// Animation speed
+			speed   : 'normal', 				// Animation speed
+			complete: 'hide',					// Accepts 'hide' 'nohide' 'redirect' (last option needs value)
+			redirect: ''
 		};
 		
 		return this.each(function()
@@ -114,16 +105,21 @@ $(function(){ $('input').attr('autocomplete','off'); });
 			if (options.status == 'success') var message_class = 'message_success';
 			else var message_class = 'message_alert';
 			
-			console.log(message_class);
-
-			//If it's not already, hide the thing to be shown, add content, classes, then show it!			
-			$this.css({display:'none'}).delay(500).html(options.message).addClass(message_class).show(options.speed)
-			//wait for the specified "timeout", then hide
-				.delay(options.timeout).hide(options.speed, function()
+			// If it's not already, hide the thing to be shown, add content, classes, then show it!			
+			$this.css({display:'none'}).delay(500).html(options.message).addClass(message_class).show(options.speed);
+			
+			// Do complete action
+			if (options.complete == 'hide')
+			{
+				$this.delay(options.timeout).hide(options.speed, function()
 				{
-					//Cleanup by removing the added classes, then empty contents
 					$this.removeClass(message_class).empty();
 				});
+			}
+			else if (options.complete == 'redirect')
+			{
+				setTimeout(function() { window.location.href = options.redirect }, options.timeout);
+			}
 		});
 	};
 })( jQuery );
@@ -536,24 +532,28 @@ function convertToSlug(str)
  * @requires utf8_encode() required for md5()
  * @requires md5() required to get Gravatar image
  *
- * @param json {obj} json object containing json.image and json.email
+ * @param json {obj} json object containing json.image and json.gravatar
  * @param size {string} Can be either "small", "medium", or "large"
  *
  * @returns {string} URL to image
  **/
 
-function getUserImageSrc(json,size){
-	
+function getUserImageSrc(json, size)
+{	
 	//Sets the default size, medium and then changes the name to be easier to use.
 	//instead of small, normal, and bigger, it changes it to small, medium, and large
 	if(!size){size='medium';} //if no size was specified
-	if(size == 'large'){
+	
+	if(size == 'large')
+	{
 		_localImgSize = 'bigger'
 	}
-	else if(size == 'small'){
+	else if(size == 'small')
+	{
 		_localImgSize = 'small' 
 	}
-	else{
+	else
+	{
 		_localImgSize = 'medium'
 	}
 	
@@ -562,21 +562,26 @@ function getUserImageSrc(json,size){
 	//to the px sizes 35, 48, and 175
 	_gravatarSize = '48'
 	
-	if(size == 'large'){
+	if(size == 'large')
+	{
 		_gravatarSize = '175'
 	}
-	else if(size == 'small'){
+	else if(size == 'small')
+	{
 		_gravatarSize = '35'
 	}
 	
 	//If the user uploaded his own image
-	if(json.image !== "0"){
+	if (json.image != '')
+	{	
 		_imgSrcOutput = '/uploads/profiles/'+json.user_id+'/'+_localImgSize+'_'+json.image
 	}
 	//Otherwise check gravatar, and/or return the default "no image" image
-	else {
-		_imgSrcOutput = 'http://gravatar.com/avatar.php?gravatar_id='+md5(json.email)+'&s='+_gravatarSize+'&d='+base_url+'/uploads/profiles/'+_localImgSize+'_nopicture.png';
+	else
+	{	
+		_imgSrcOutput = 'http://gravatar.com/avatar.php?gravatar_id='+json.gravatar+'&s='+_gravatarSize+'&d='+base_url+'/uploads/profiles/'+_localImgSize+'_nopicture.png';
 	}
+	
 	return _imgSrcOutput;
 }
 

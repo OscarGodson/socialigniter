@@ -17,6 +17,7 @@
 class MY_Controller extends MX_Controller
 {
     protected $data = array();
+    protected $site_widgets			= array();
     protected $social_logins		= array();
     protected $social_connections	= array();
 	protected $social_post			= array();
@@ -28,7 +29,6 @@ class MY_Controller extends MX_Controller
     protected $module_controller;
     protected $module;
     protected $modules_navigation;
-	public $config_email 			= array();    
     public $modules_scan 			= array();
 
 	function __construct()
@@ -61,7 +61,11 @@ class MY_Controller extends MX_Controller
 			$this->data['settings'][$setting->module][$setting->setting] = $setting->value;
 
             $this->config->set_item($setting->module.'_'.$setting->setting, $setting->value);
-		
+
+			// Make Widgets Array
+			if ($setting->module  == 'widgets') $this->site_widgets[] = $setting;
+			
+			// Make Social Arrays
 			if (($setting->setting == 'social_login') 		&& ($setting->value == 'TRUE')) $this->social_logins[] 		= $setting->module;
 			if (($setting->setting == 'social_connection')	&& ($setting->value == 'TRUE')) $this->social_connections[] = $setting->module;
 			if (($setting->setting == 'social_post') 		&& ($setting->value == 'TRUE')) $this->social_post[] 		= $setting->module;
@@ -82,28 +86,6 @@ class MY_Controller extends MX_Controller
 		$this->config->set_item('social_connections', $this->social_connections);
 		$this->config->set_item('social_post', $this->social_post);
 		$this->config->set_item('social_checkin', $this->social_checkin);
-
-		// Config Email	
-		$this->load->library('email');
-		
-		$this->config_email['protocol']  	= config_item('site_email_protocol');
-		$this->config_email['mailtype']  	= 'html';
-		$this->config_email['charset']  	= 'UTF-8';
-		$this->config_email['crlf']			= "\r\n";
-		$this->config_email['newline'] 		= "\r\n"; 			
-		$this->config_email['wordwrap']  	= FALSE;
-		$this->config_email['validate']		= TRUE;
-		$this->config_email['priority']		= 1;
-		
-		if (config_item('site_email_protocol') == 'smtp')
-		{
-			$this->config_email['smtp_host'] 	= config_item('site_smtp_host');
-			$this->config_email['smtp_user'] 	= config_item('site_smtp_user');
-			$this->config_email['smtp_pass'] 	= config_item('site_smtp_pass');
-			$this->config_email['smtp_port'] 	= config_item('site_smtp_port');
-		}
-
-		$this->email->initialize($this->config_email);
 
 		// Themes
         if ($this->agent->is_mobile())
