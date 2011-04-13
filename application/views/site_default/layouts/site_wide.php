@@ -34,8 +34,9 @@
 <div id="footer">
 	<div class="wrap">		
 		<?= $footer ?>
+		<div class="clear"></div>
 	</div>
 </div>
-<?= $settings['services']['google_analytics'] ?>
+<?= $google_analytics ?>
 </body>
 </html>

@@ -25,7 +25,7 @@
 
 <div id="content">
 	<div class="wrap">
-		<div id="main">
+		<div id="main_profile">
 			<div class="content norm_top"></div>	
 			<div class="content norm_mid">		
 				<?= $content ?>
@@ -48,6 +48,6 @@
 		<?= $footer ?>
 	</div>
 </div>
-<?= $settings['services']['google_analytics'] ?>
+<?= $google_analytics ?>
 </body>
 </html>

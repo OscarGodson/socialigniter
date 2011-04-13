@@ -100,6 +100,16 @@ class MY_Controller extends MX_Controller
         }
 
 		$this->config->set_item('mobile_theme', $this->data['settings']['themes']['mobile_theme']);
+		
+		// Google Analytics
+		if (config_item('services_google_analytics'))
+		{
+			$this->data['google_analytics']	= $this->load->view(config_item('dashboard_theme').'/partials/google_analytics', $this->data, true);
+		}
+		else
+		{
+			$this->data['google_analytics'] = '';
+		}
 
 		// Dashboard & Public values for logged
 		if ($this->social_auth->logged_in())
@@ -156,6 +166,16 @@ class MY_Controller extends MX_Controller
 			// Site Forms
 			$this->data['comments_write_form']	= 'comments_public_form';
 		}
+		
+    	// Sets Previous Page
+		if (isset($_SERVER['HTTP_REFERER']))
+		{
+			$this->session->set_userdata('previous_page', $_SERVER['HTTP_REFERER']);
+		}
+		else
+		{
+			$this->session->set_userdata('previous_page', '');
+		}		
 
 		// Site Paths
 		$this->data['shared_images']		= base_url().'images/shared/';
@@ -174,7 +194,7 @@ class MY_Controller extends MX_Controller
       	$this->module_name     				= $this->router->fetch_module();
         $this->module_controller 			= $this->router->fetch_class();
         
-		// Scann Modules directory
+		// Scan Modules
 		$this->modules_scan = $this->social_igniter->scan_modules();        
 
         // For Debugging
